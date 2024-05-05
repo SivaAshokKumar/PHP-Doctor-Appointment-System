@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>One-to-One Emergency Video Conference</title>
+    <link rel="icon" href=" https://res.cloudinary.com/dq7pblvqg/image/upload/v1714230042/DP%20SEMESTER%206%20PROJECT/logoas1_mwbgm8.png" type="image/x-icon">
+	
+</head>
+<body>
+    <h1>One-to-One Emergency Video Conference </h1>
+    <video id="localVideo" autoplay playsinline muted></video>
+    <video id="remoteVideo" autoplay playsinline></video>
+
+    <script>
+        const localVideo = document.getElementById('localVideo');
+        const remoteVideo = document.getElementById('remoteVideo');
+        let peerConnection;
+
+        // Get access to the user's camera and microphone
+        navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+            .then(stream => {
+                localVideo.srcObject = stream;
+                createPeerConnection(stream);
+            })
+            .catch(error => {
+                console.error('Error accessing media devices:', error);
+            });
+
+        // Create a peer connection and set up event handlers
+        function createPeerConnection(stream) {
+            const configuration = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+            peerConnection = new RTCPeerConnection(configuration);
+
+            // Add local stream to the peer connection
+            stream.getTracks().forEach(track => peerConnection.addTrack(track, stream));
+
+            // Set up event handlers for signaling
+            peerConnection.onicecandidate = handleICECandidate;
+            peerConnection.ontrack = handleTrackEvent;
+            // Additional event handlers can be added as needed
+        }
+
+        // Handle ICE candidate events
+        function handleICECandidate(event) {
+            if (event.candidate) {
+                // Send ICE candidate to the other peer via the signaling server
+                sendSignalingMessage({ type: 'candidate', candidate: event.candidate });
+            }
+        }
+
+        // Handle incoming media streams
+        function handleTrackEvent(event) {
+            if (event.streams && event.streams[0]) {
+                remoteVideo.srcObject = event.streams[0];
+            }
+        }
+
+        // Send signaling messages to the PHP signaling server
+        function sendSignalingMessage(message) {
+            fetch('signaling.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(message),
+            })
+            .then(response => {
+                if (!response.ok) {
+                    console.error('Failed to send signaling message:', response.statusText);
+                }
+            })
+            .catch(error => {
+                console.error('Error sending signaling message:', error);
+            });
+        }
+
+        // Your signaling logic for offer, answer, etc. can be added here
+
+        // Clean up resources on page unload or when ending the call
+        window.onunload = window.onbeforeunload = () => {
+            if (peerConnection) {
+                peerConnection.close();
+            }
+        };
+    </script>
+</body>
+</html>
